@@ -43,10 +43,7 @@ const el = {
     achievementTitle: document.getElementById('achievement-title'),
     achievementBadge: document.querySelector('.badge-icon'),
 
-    summary: document.getElementById('result-summary'),
-
-    soundCorrect: document.getElementById('sound-correct'),
-    soundWrong: document.getElementById('sound-wrong')
+    summary: document.getElementById('result-summary')
 };
 
 
@@ -112,20 +109,63 @@ async function startQuizHandler(e) {
 
     switchScreen(el.start, el.loading);
 
-    let url = `https://opentdb.com/api.php?amount=10&type=multiple`;
-    if (el.category.value) url += `&category=${el.category.value}`;
-    if (el.difficulty.value) url += `&difficulty=${el.difficulty.value}`;
+    try {
+        let url = `https://opentdb.com/api.php?amount=10&type=multiple`;
+        if (el.category.value) url += `&category=${el.category.value}`;
+        if (el.difficulty.value) url += `&difficulty=${el.difficulty.value}`;
 
-    const res = await fetch(url);
-    const data = await res.json();
+        console.log('Fetching questions from:', url);
 
-    state.questions = data.results;
-    state.currentIndex = 0;
-    state.score = 0;
-    state.userAnswers = [];
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 15000);
 
-    switchScreen(el.loading, el.quiz);
-    showQuestion();
+        const res = await fetch(url, {
+            signal: controller.signal,
+            mode: 'cors'
+        });
+
+        clearTimeout(timeoutId);
+
+        if (!res.ok) {
+            throw new Error(`API returned status ${res.status}`);
+        }
+
+        const data = await res.json();
+        console.log('API Response:', data);
+
+        if (!data.results || data.results.length === 0) {
+            throw new Error('No questions received from API');
+        }
+
+        state.questions = data.results;
+        state.currentIndex = 0;
+        state.score = 0;
+        state.userAnswers = [];
+
+        setTimeout(() => {
+            switchScreen(el.loading, el.quiz);
+            showQuestion();
+        }, 800);
+    } catch (error) {
+        console.error('Quiz loading error:', error);
+
+        let errorMsg = 'Unable to load quiz questions. ';
+
+        if (error.name === 'AbortError') {
+            errorMsg += 'Request timed out. Please check your internet connection.';
+        } else if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+            errorMsg += 'Cannot reach the quiz server. This may be due to:\n\n' +
+                '• Network/Internet connection issues\n' +
+                '• Opening from file:// - Try using a local server instead\n' +
+                '• Firewall blocking the request\n\n' +
+                'Try opening this quiz on a local web server (e.g., using Live Server extension in VS Code).';
+        } else {
+            errorMsg += error.message;
+        }
+
+        alert(errorMsg);
+        switchScreen(el.loading, el.start);
+    }
 }
 
 function showQuestion() {
@@ -179,6 +219,7 @@ function finishQuestion(answer, btn = null) {
 
     const q = state.questions[state.currentIndex];
     const correct = decodeHTML(q.correct_answer);
+    const isSkipped = answer === 'SKIPPED' || answer === 'TIMEOUT';
 
     const buttons = document.querySelectorAll('.option-btn');
     buttons.forEach(b => {
@@ -187,12 +228,12 @@ function finishQuestion(answer, btn = null) {
         if (btn && b === btn && b.textContent !== correct) b.classList.add('wrong');
     });
 
-    if (answer === correct) {
+    const isCorrect = answer === correct;
+    if (isCorrect) {
         state.score++;
-        el.soundCorrect.play();
-    } else {
-        el.soundWrong.play();
     }
+
+    state.userAnswers.push({ correct: isCorrect, skipped: isSkipped });
 
     el.score.textContent = state.score;
     el.skip.classList.add('hidden');
@@ -206,13 +247,48 @@ function nextQuestion() {
 
 /* ---------------- RESULT ---------------- */
 
+function getAchievement(percentage) {
+    if (percentage === 100) return { icon: '👑', title: 'Perfect Score!' };
+    if (percentage >= 80) return { icon: '🌟', title: 'Outstanding!' };
+    if (percentage >= 60) return { icon: '🎯', title: 'Great Job!' };
+    if (percentage >= 40) return { icon: '💪', title: 'Good Effort!' };
+    return { icon: '🌱', title: 'Keep Learning!' };
+}
+
 function endGame() {
     switchScreen(el.quiz, el.result);
+
+    const percentage = (state.score / state.questions.length) * 100;
+    const achievement = getAchievement(percentage);
+
+    el.achievementBadge.textContent = achievement.icon;
+    el.achievementTitle.textContent = achievement.title;
     el.finalScore.textContent = state.score;
 
     const high = localStorage.getItem(STORAGE_KEY_SCORE) || 0;
     if (state.score > high) {
         localStorage.setItem(STORAGE_KEY_SCORE, state.score);
         el.greeting.textContent = `🎉 New High Score, ${state.username}!`;
+    } else {
+        el.greeting.textContent = `Great job, ${state.username}!`;
     }
+
+    const correct = state.userAnswers.filter(a => a.correct).length;
+    const skipped = state.userAnswers.filter(a => a.skipped).length;
+    const wrong = state.questions.length - correct - skipped;
+
+    el.summary.innerHTML = `
+        <div class="stat-card stat-correct">
+            <span class="label">✓ Correct</span>
+            <span class="value">${correct}</span>
+        </div>
+        <div class="stat-card stat-incorrect">
+            <span class="label">✗ Incorrect</span>
+            <span class="value">${wrong}</span>
+        </div>
+        <div class="stat-card stat-skipped">
+            <span class="label">⊘ Skipped</span>
+            <span class="value">${skipped}</span>
+        </div>
+    `;
 }
