@@ -61,7 +61,6 @@ function bindEvents() {
     el.restart.addEventListener('click', () => location.reload());
 }
 
-/* ---------------- UTILS ---------------- */
 
 function decodeHTML(str) {
     const txt = document.createElement('textarea');
@@ -76,14 +75,11 @@ function switchScreen(from, to) {
     to.classList.add('active');
 }
 
-/* ---------------- STORAGE ---------------- */
 
 function loadLocalData() {
     el.username.value = localStorage.getItem(STORAGE_KEY_NAME) || '';
     el.highScore.textContent = localStorage.getItem(STORAGE_KEY_SCORE) || 0;
 }
-
-/* ---------------- API ---------------- */
 
 async function loadCategories() {
     const res = await fetch('https://opentdb.com/api_category.php');
@@ -96,7 +92,6 @@ async function loadCategories() {
     });
 }
 
-/* ---------------- QUIZ FLOW ---------------- */
 
 async function startQuizHandler(e) {
     e.preventDefault();
