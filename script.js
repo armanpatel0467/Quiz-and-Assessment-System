@@ -2,8 +2,8 @@ const state = {
     questions: [],
     currentIndex: 0,
     score: 0,
-    timer: ,
-    timeLeft: 30,
+    timer: null,
+    timeLeft: 15,
     userAnswers: [],
     username: '',
     locked: false
