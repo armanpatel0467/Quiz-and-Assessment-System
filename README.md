@@ -96,6 +96,10 @@ Quiz-Assessment-System/
 ## 👨‍💻 Author
 
 **Ganesh Choudhary**  
+**Arman Patel**
+**Aditya Vawhal**
+**Kaif Khan**
+**Piyush Chouhan**
 Student | Web Development Learner  
 
 ---
